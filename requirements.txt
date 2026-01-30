@@ -1,10 +1,10 @@
-altair<5
-pandas
 streamlit>=1.40.0
 groq
+requests
 easyocr
-opencv-python-headless
+pdfplumber
+gTTS
 Pillow
 numpy
-gTTS
-pdfplumber
+opencv-python-headless
+altair<5

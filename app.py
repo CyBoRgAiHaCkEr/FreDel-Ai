@@ -52,20 +52,21 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE GHOST-FILE MOTION ENGINE (Fixes Broken Icons Forever) ---
+# --- 3. THE GHOST-FILE MOTION ENGINE ---
 def render_motion_blob(prompt):
     seed = np.random.randint(0, 999999)
     clean_p = prompt.replace(" ", "%20")
-    # Stable 2026 motion source
+    # Using the most stable 2026 animation endpoint
     url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
     
     try:
         resp = requests.get(url, timeout=30)
         if resp.status_code == 200:
-            # We encode the data to be injected into a JavaScript Blob
+            # Convert binary to Base64
             b64_data = base64.b64encode(resp.content).decode()
             
-            # This JS creates a virtual local file (Blob) which bypasses all browser blocks
+            # This JavaScript creates a virtual "Blob" file locally in the browser memory
+            # This is the ONLY way to bypass modern browser security blocks
             js_code = f"""
                 <div id="video-container" style="text-align:center;">
                     <img id="motion-img" style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display:none;">
@@ -85,7 +86,7 @@ def render_motion_blob(prompt):
                     const img = document.getElementById('motion-img');
                     img.src = url;
                     img.style.display = 'block';
-                    document.getElementById('status-text').innerText = '✨ FreDèlAi Motion Link Solidified';
+                    document.getElementById('status-text').innerText = '✨ FreDèlAi Motion Link Active';
                 </script>
             """
             components.html(js_code, height=520)
@@ -102,7 +103,7 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     if "=" in prompt:
         k, v = prompt.split("=")
         st.session_state.patterns[k.strip().lower()] = v.strip()
-        st.toast("Locked!")
+        st.toast("Pattern Locked!")
 
     display_p = prompt
     for k, v in st.session_state.patterns.items():

@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 # --- 1. CONFIG & BRANDING ---
 st.set_page_config(page_title="FreDèlAi Infinity", page_icon="♾️", layout="wide")
 
-# Custom CSS to center the rectangular logo and style the chat
+# Custom CSS for your mom's rectangular logo and chat style
 st.markdown("""
     <style>
     [data-testid="stSidebar"] img {
@@ -24,7 +24,7 @@ st.markdown("""
 
 # --- 2. SIDEBAR & LOGO BRIDGE ---
 with st.sidebar:
-    # Logic to handle your mom's logo when you have it
+    # This automatically shows the logo if 'logo.png' exists in your folder
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
     else:
@@ -34,16 +34,13 @@ with st.sidebar:
     st.divider()
     st.subheader("💾 Brain Port")
     
-    # Initialize session state keys
     if "brain_memory" not in st.session_state: st.session_state.brain_memory = ""
     if "patterns" not in st.session_state: st.session_state.patterns = {}
     if "messages" not in st.session_state: st.session_state.messages = []
 
-    # Brain Export
     brain_data = {"mem": st.session_state.brain_memory, "pat": st.session_state.patterns}
     st.download_button("📥 Save Brain", data=json.dumps(brain_data), file_name="fredel_brain.json")
     
-    # Brain Import
     up_brain = st.file_uploader("📤 Load Brain", type="json")
     if up_brain and st.button("🔄 Restore"):
         b = json.load(up_brain)
@@ -51,8 +48,7 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
-    # Knowledge Sync (OCR)
-    files = st.file_uploader("Sync Files", type=["pdf","png","jpg"], accept_multiple_files=True)
+    files = st.file_uploader("Sync Knowledge", type=["pdf","png","jpg"], accept_multiple_files=True)
     if st.button("⚡ Sync Core"):
         reader = easyocr.Reader(['en'], gpu=False)
         for f in files:
@@ -65,16 +61,17 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE INFALLIBLE VIDEO RENDERER (Direct Inject) ---
+# --- 3. THE INFALLIBLE VIDEO RENDERER (Base64 Inject) ---
 def render_video_fixed(prompt):
     seed = np.random.randint(0, 999999)
     clean_p = prompt.replace(" ", "%20")
     v_url = f"https://image.pollinations.ai/prompt/{clean_p}?seed={seed}&model=video"
     
     try:
-        # Fetch video data and encode to Base64 to bypass 'Black Screen'
+        # Step 1: Download the video data directly
         response = requests.get(v_url, timeout=45)
         if response.status_code == 200:
+            # Step 2: Convert to Base64 to bypass 'Black Screen' issues
             b64_video = base64.b64encode(response.content).decode()
             video_tag = f"""
                 <video width="100%" autoplay loop muted controls style="border-radius:10px;">
@@ -88,19 +85,17 @@ def render_video_fixed(prompt):
     except Exception as e:
         st.error(f"Video Error: {e}")
 
-# --- 4. MAIN CHAT ---
+# --- 4. MAIN CHAT INTERFACE ---
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 if prompt := st.chat_input("Command FreDèlAi..."):
-    # Pattern Learning
     if "=" in prompt:
         k, v = prompt.split("=")
         st.session_state.patterns[k.strip().lower()] = v.strip()
-        st.toast("Pattern Locked!")
+        st.toast("Locked!")
 
     display_p = prompt
-    # Apply patterns
     for k, v in st.session_state.patterns.items():
         if k in prompt.lower(): prompt = prompt.lower().replace(k, v)
 
@@ -108,17 +103,17 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
-        # Instant Images
+        # IMAGE: Instant Generation
         if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
             seed = np.random.randint(0, 99999)
             st.image(f"https://image.pollinations.ai/prompt/{prompt.replace(' ','%20')}?seed={seed}&nologo=true")
         
-        # Instant Video (Fixed)
+        # VIDEO: Direct Inject Generation (Fixes Black Screen)
         elif "video" in display_p.lower():
             with st.spinner("🎥 Rendering & Injecting Video..."):
                 render_video_fixed(prompt)
         
-        # Text Engine (Groq)
+        # TEXT: Groq Engine
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             ctx = f"Brain Memory: {st.session_state.brain_memory[:2000]}"

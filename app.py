@@ -1,110 +1,73 @@
 import streamlit as st
-import numpy as np, requests, json, os
+import numpy as np, requests, json, os, time
 import pdfplumber, easyocr, cv2
 from PIL import Image
 from groq import Groq
 
-# --- 1. CONFIG & BRANDING ---
+# --- 1. CONFIG ---
 st.set_page_config(page_title="FreDèlAi Infinity", page_icon="♾️", layout="wide")
 
-st.markdown("""
-    <style>
-    [data-testid="stSidebar"] img {
-        display: block; margin-left: auto; margin-right: auto;
-        border-radius: 10px; margin-bottom: 20px;
-    }
-    .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
-    </style>
-    """, unsafe_allow_html=True)
-
-# --- 2. SIDEBAR & LOGO BRIDGE ---
+# --- 2. SIDEBAR ---
 with st.sidebar:
-    if os.path.exists("logo.png"):
-        st.image("logo.png", use_container_width=True)
-    else:
-        st.title("🤖 FreDèlAi")
+    st.title("🤖 FreDèlAi")
+    st.caption("2026 Stable Build")
     
-    st.divider()
     if "messages" not in st.session_state: st.session_state.messages = []
     if "brain_memory" not in st.session_state: st.session_state.brain_memory = ""
-    if "patterns" not in st.session_state: st.session_state.patterns = {}
 
-    st.subheader("💾 Brain Port")
-    st.download_button("📥 Save Brain", data=json.dumps({"mem": st.session_state.brain_memory, "pat": st.session_state.patterns}), file_name="fredel_brain.json")
-    
-    up_brain = st.file_uploader("📤 Load Brain", type="json")
-    if up_brain and st.button("🔄 Restore"):
-        b = json.load(up_brain)
-        st.session_state.brain_memory, st.session_state.patterns = b['mem'], b['pat']
+    # EMERGENCY RESET: If you hit a rate limit, click this.
+    if st.button("🗑️ Reset Tokens (Clear History)"):
+        st.session_state.messages = []
+        st.session_state.brain_memory = ""
         st.rerun()
 
-    st.divider()
-    files = st.file_uploader("Sync Knowledge", type=["pdf","png","jpg"], accept_multiple_files=True)
-    if st.button("⚡ Sync Core"):
-        reader = easyocr.Reader(['en'], gpu=False)
-        for f in files:
-            if "pdf" in f.type:
-                with pdfplumber.open(f) as pdf:
-                    txt = " ".join([p.extract_text() or "" for p in pdf.pages])
-            else:
-                img = np.array(Image.open(f))
-                txt = " ".join(reader.readtext(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), detail=0))
-            st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
-        st.success("Brain Updated!")
-
-# --- 3. THE PHYSICAL MIRROR ENGINE (Kills Broken Icons) ---
-def render_physical_motion(prompt):
+# --- 3. THE "DISK-FLUSH" MOTION ENGINE ---
+def render_motion_physical(prompt):
     seed = np.random.randint(0, 999999)
     url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
-    
     try:
-        # Step 1: Download the data to your computer
         response = requests.get(url, timeout=30)
         if response.status_code == 200:
-            # Step 2: Save it as a real file in your folder
+            # We save locally to ensure NO BROKEN ICONS
             with open("temp_motion.webp", "wb") as f:
                 f.write(response.content)
-            
-            # Step 3: Show the LOCAL file (Browsers always trust local files)
-            st.image("temp_motion.webp", caption="✨ FreDèlAi Motion Physical Link", use_container_width=True)
-        else:
-            st.error("Engine is cooling down. Try again in 5 seconds!")
+            st.image("temp_motion.webp", caption="✨ FreDèlAi Motion")
     except Exception as e:
-        st.error(f"Hardware Sync Error: {e}")
+        st.error(f"Visual Error: {e}")
 
 # --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 if prompt := st.chat_input("Command FreDèlAi..."):
-    if "=" in prompt:
-        k, v = prompt.split("=")
-        st.session_state.patterns[k.strip().lower()] = v.strip()
-        st.toast("Pattern Locked!")
-
-    display_p = prompt
-    for k, v in st.session_state.patterns.items():
-        if k in prompt.lower(): prompt = prompt.lower().replace(k, v)
-
-    st.session_state.messages.append({"role": "user", "content": display_p})
-    with st.chat_message("user"): st.markdown(display_p)
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
-            seed = np.random.randint(0, 99999)
-            st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
-        
-        elif "video" in display_p.lower():
-            with st.spinner("🛠️ Forging Motion File..."):
-                render_physical_motion(prompt)
-        
+        if any(x in prompt.lower() for x in ["draw", "image", "video", "motion"]):
+            with st.spinner("🚀 Generating..."):
+                render_motion_physical(prompt)
         else:
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            ctx = f"Brain Memory: {st.session_state.brain_memory[:2000]}"
-            r = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role":"system","content":f"You are FreDèlAi. {ctx}"}] + st.session_state.messages
-            )
-            ans = r.choices[0].message.content
-            st.markdown(ans)
-            st.session_state.messages.append({"role": "assistant", "content": ans})
+            try:
+                # IMPORTANT: Use your NEW key in Streamlit Secrets!
+                client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+                
+                # THE CIRCUIT BREAKER:
+                # 1. Only send the last 5 messages to save tokens.
+                # 2. Cap the extra knowledge to 1000 characters.
+                safe_history = st.session_state.messages[-5:]
+                safe_brain = st.session_state.brain_memory[-1000:]
+                
+                # Swapping to llama-3.1-8b-instant (Higher limits than the 70b)
+                r = client.chat.completions.create(
+                    model="llama-3.1-8b-instant", 
+                    messages=[{"role":"system","content":f"You are FreDèlAi. Knowledge: {safe_brain}"}] + safe_history
+                )
+                ans = r.choices[0].message.content
+                st.markdown(ans)
+                st.session_state.messages.append({"role": "assistant", "content": ans})
+            except Exception as e:
+                if "429" in str(e) or "413" in str(e):
+                    st.error("🚨 Context Overload! Click 'Reset Tokens' in the sidebar and try again.")
+                else:
+                    st.error(f"Error: {e}")

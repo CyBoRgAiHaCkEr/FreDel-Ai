@@ -20,18 +20,21 @@ st.markdown("""
 
 # --- 2. SIDEBAR & LOGO BRIDGE ---
 with st.sidebar:
+    # This centers your mom's rectangular logo perfectly when you add 'logo.png'
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
     else:
         st.title("🤖 FreDèlAi")
-        st.caption("Place 'logo.png' in folder for branding")
+        st.caption("Add 'logo.png' to folder to activate branding")
     
     st.divider()
     if "messages" not in st.session_state: st.session_state.messages = []
     if "brain_memory" not in st.session_state: st.session_state.brain_memory = ""
     if "patterns" not in st.session_state: st.session_state.patterns = {}
 
+    st.subheader("💾 Brain Port")
     st.download_button("📥 Save Brain", data=json.dumps({"mem": st.session_state.brain_memory, "pat": st.session_state.patterns}), file_name="fredel_brain.json")
+    
     up_brain = st.file_uploader("📤 Load Brain", type="json")
     if up_brain and st.button("🔄 Restore"):
         b = json.load(up_brain)
@@ -52,60 +55,52 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE GHOST-FILE MOTION ENGINE ---
-def render_motion_blob(prompt):
+# --- 3. THE ULTIMATE BINARY INJECTOR (Zero Broken Icons) ---
+def render_motion_ultimate(prompt):
     seed = np.random.randint(0, 999999)
     clean_p = prompt.replace(" ", "%20")
-    # Using the most stable 2026 animation endpoint
+    # Stable 2026 turbo motion source
     url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
     
     try:
         resp = requests.get(url, timeout=30)
         if resp.status_code == 200:
-            # Convert binary to Base64
+            # We encode the image data into a Base64 string
             b64_data = base64.b64encode(resp.content).decode()
             
-            # This JavaScript creates a virtual "Blob" file locally in the browser memory
-            # This is the ONLY way to bypass modern browser security blocks
-            js_code = f"""
-                <div id="video-container" style="text-align:center;">
-                    <img id="motion-img" style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display:none;">
-                    <p id="status-text" style="color:#00ffcc; font-family:sans-serif; margin-top:10px;">⚡ Initializing Ghost Link...</p>
+            # This HTML/JS combo forces the browser to render the data from memory
+            # It uses a "Blob" to ensure the browser treats it as a local file
+            injection_code = f"""
+                <div id="display-area" style="text-align:center;">
+                    <p id="status" style="color:#00ffcc; font-family:sans-serif;">🔌 Injecting Motion Data...</p>
                 </div>
                 <script>
-                    const b64Data = "{b64_data}";
-                    const byteCharacters = atob(b64Data);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {{
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                    }}
-                    const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], {{type: 'image/webp'}});
+                    const data = "{b64_data}";
+                    const blob = new Blob([Uint8Array.from(atob(data), c => c.charCodeAt(0))], {{type: 'image/webp'}});
                     const url = URL.createObjectURL(blob);
-                    
-                    const img = document.getElementById('motion-img');
-                    img.src = url;
-                    img.style.display = 'block';
-                    document.getElementById('status-text').innerText = '✨ FreDèlAi Motion Link Active';
+                    const container = document.getElementById('display-area');
+                    container.innerHTML = '<img src="' + url + '" style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">';
                 </script>
             """
-            components.html(js_code, height=520)
+            components.html(injection_code, height=520)
         else:
-            st.error("Server is busy. Try again in a moment.")
+            st.error("Server is busy cooking the animation. Try again in 5 seconds!")
     except Exception as e:
-        st.error(f"Visual Link Error: {e}")
+        st.error(f"Injection Failed: {e}")
 
 # --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 if prompt := st.chat_input("Command FreDèlAi..."):
+    # Pattern Learning Logic
     if "=" in prompt:
         k, v = prompt.split("=")
         st.session_state.patterns[k.strip().lower()] = v.strip()
         st.toast("Pattern Locked!")
 
     display_p = prompt
+    # Apply user-defined patterns
     for k, v in st.session_state.patterns.items():
         if k in prompt.lower(): prompt = prompt.lower().replace(k, v)
 
@@ -113,14 +108,17 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
+        # DRAW COMMAND
         if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
             seed = np.random.randint(0, 99999)
             st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
         
+        # VIDEO COMMAND (The Fixed One)
         elif "video" in display_p.lower():
-            with st.spinner("🚀 Launching Motion Engine..."):
-                render_motion_blob(prompt)
+            with st.spinner("🚀 Booting Motion Engine..."):
+                render_motion_ultimate(prompt)
         
+        # REGULAR TEXT COMMAND
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             ctx = f"Brain Memory: {st.session_state.brain_memory[:2000]}"

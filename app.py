@@ -3,6 +3,7 @@ import numpy as np, requests, time, json, os, base64
 import pdfplumber, easyocr, cv2
 from PIL import Image
 from groq import Groq
+import streamlit.components.v1 as components
 
 # --- 1. CONFIG & BRANDING ---
 st.set_page_config(page_title="FreDèlAi Infinity", page_icon="♾️", layout="wide")
@@ -26,14 +27,11 @@ with st.sidebar:
         st.caption("Place 'logo.png' in folder for branding")
     
     st.divider()
-    st.subheader("💾 Brain Port")
-    
-    for key in ["messages", "brain_memory", "patterns"]:
-        if key not in st.session_state:
-            st.session_state[key] = [] if key == "messages" else ("" if key == "brain_memory" else {})
+    if "messages" not in st.session_state: st.session_state.messages = []
+    if "brain_memory" not in st.session_state: st.session_state.brain_memory = ""
+    if "patterns" not in st.session_state: st.session_state.patterns = {}
 
     st.download_button("📥 Save Brain", data=json.dumps({"mem": st.session_state.brain_memory, "pat": st.session_state.patterns}), file_name="fredel_brain.json")
-    
     up_brain = st.file_uploader("📤 Load Brain", type="json")
     if up_brain and st.button("🔄 Restore"):
         b = json.load(up_brain)
@@ -54,31 +52,45 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE FORCE-FEED VISION ENGINE (Fixes Broken Icons) ---
-def render_motion_ultimate(prompt):
+# --- 3. THE GHOST-FILE MOTION ENGINE (Fixes Broken Icons Forever) ---
+def render_motion_blob(prompt):
     seed = np.random.randint(0, 999999)
     clean_p = prompt.replace(" ", "%20")
-    
-    # We use a high-reliability animated endpoint
+    # Stable 2026 motion source
     url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
     
     try:
-        # We download the file completely to avoid the "Broken Icon"
         resp = requests.get(url, timeout=30)
         if resp.status_code == 200:
-            # Convert binary data to a Base64 string the browser can't block
+            # We encode the data to be injected into a JavaScript Blob
             b64_data = base64.b64encode(resp.content).decode()
             
-            # Using st.markdown with a data-URI is the most compatible way to show motion
-            st.markdown(
-                f'<div style="text-align:center;">'
-                f'<img src="data:image/webp;base64,{b64_data}" style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">'
-                f'<p style="color:#00ffcc; margin-top:10px; font-weight:bold;">✨ FreDèlAi Motion Link Established</p>'
-                f'</div>', 
-                unsafe_allow_html=True
-            )
+            # This JS creates a virtual local file (Blob) which bypasses all browser blocks
+            js_code = f"""
+                <div id="video-container" style="text-align:center;">
+                    <img id="motion-img" style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display:none;">
+                    <p id="status-text" style="color:#00ffcc; font-family:sans-serif; margin-top:10px;">⚡ Initializing Ghost Link...</p>
+                </div>
+                <script>
+                    const b64Data = "{b64_data}";
+                    const byteCharacters = atob(b64Data);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {{
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }}
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const blob = new Blob([byteArray], {{type: 'image/webp'}});
+                    const url = URL.createObjectURL(blob);
+                    
+                    const img = document.getElementById('motion-img');
+                    img.src = url;
+                    img.style.display = 'block';
+                    document.getElementById('status-text').innerText = '✨ FreDèlAi Motion Link Solidified';
+                </script>
+            """
+            components.html(js_code, height=520)
         else:
-            st.error("Engine warming up. Please try again in 5 seconds.")
+            st.error("Server is busy. Try again in a moment.")
     except Exception as e:
         st.error(f"Visual Link Error: {e}")
 
@@ -100,17 +112,14 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
-        # IMAGES
         if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
             seed = np.random.randint(0, 99999)
             st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
         
-        # MOTION (FIXED VIDEO)
         elif "video" in display_p.lower():
             with st.spinner("🚀 Launching Motion Engine..."):
-                render_motion_ultimate(prompt)
+                render_motion_blob(prompt)
         
-        # TEXT
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             ctx = f"Brain Memory: {st.session_state.brain_memory[:2000]}"

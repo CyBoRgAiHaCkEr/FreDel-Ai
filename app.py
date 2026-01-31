@@ -5,48 +5,76 @@ from PIL import Image
 from groq import Groq
 from gtts import gTTS
 
-# --- 1. CONFIG & SYSTEM STATE ---
+# --- 1. CONFIG & SYSTEM BRAIN ---
 st.set_page_config(page_title="FreDèlAi 2026", page_icon="🤖", layout="wide")
 
-for key in ["brain_memory", "messages", "patterns"]:
-    if key not in st.session_state:
-        st.session_state[key] = [] if key == "messages" else ("" if key == "brain_memory" else {})
+# Persistent memory keys
+if "brain_memory" not in st.session_state: st.session_state.brain_memory = ""
+if "messages" not in st.session_state: st.session_state.messages = []
+if "patterns" not in st.session_state: st.session_state.patterns = {}
 
-# --- 2. THE RESILIENT API ENGINE ---
+# --- 2. RESILIENT API ENGINE (503 FIX) ---
 def call_hf_api(prompt, model_id):
-    # Using the DIRECT endpoint (faster for free tier than the Router)
     url = f"https://api-inference.huggingface.co/models/{model_id}"
-    headers = {"Authorization": f"Bearer {st.secrets['HF_TOKEN']}", "X-Wait-For-Model": "true"}
+    headers = {
+        "Authorization": f"Bearer {st.secrets['HF_TOKEN']}",
+        "X-Wait-For-Model": "true",
+        "X-Use-Cache": "false"
+    }
     
-    # Aggressive 3-strike retry with short wait
-    for i in range(3):
+    # We try 5 times with increasing wait periods to bypass "Server Busy"
+    for i in range(5):
         try:
-            resp = requests.post(url, headers=headers, json={"inputs": prompt}, timeout=60)
-            if resp.status_code == 200 and len(resp.content) > 500:
+            resp = requests.post(url, headers=headers, json={"inputs": prompt}, timeout=100)
+            if resp.status_code == 200 and len(resp.content) > 1000:
                 return resp.content
-            if resp.status_code == 503: # Model is loading
-                st.toast(f"⏳ Waking up {model_id.split('/')[-1]}...")
-                time.sleep(10) # Give it time to load into GPU
-            else:
-                break
+            
+            # If 503 (Busy) or 429 (Rate Limit), we wait and retry
+            if resp.status_code in [503, 429]:
+                wait = (i + 1) * 7 # 7s, 14s, 21s...
+                st.toast(f"🌀 Server is waking up... retrying in {wait}s")
+                time.sleep(wait)
+                continue
+            break
         except:
             continue
     return None
 
-# --- 3. SIDEBAR CONTROLS ---
+# --- 3. SIDEBAR: THE BRAIN PORT & OCR ---
 with st.sidebar:
-    st.title("🤖 FreDèlAi Core")
+    st.title("🤖 FreDèlAi Control")
     
-    # Health Monitor
-    if st.button("🩺 Check API Health"):
-        test = call_hf_api("test", "runwayml/stable-diffusion-v1-5")
-        st.success("✅ Connected") if test else st.error("❌ Servers Busy")
+    # --- DOWNLOAD BRAIN ---
+    st.subheader("💾 Export Brain")
+    brain_data = {
+        "memory": st.session_state.brain_memory,
+        "patterns": st.session_state.patterns,
+        "history": st.session_state.messages
+    }
+    st.download_button(
+        label="📥 Download .JSON Brain",
+        data=json.dumps(brain_data),
+        file_name="fredel_brain_2026.json",
+        mime="application/json"
+    )
+    
+    # --- UPLOAD BRAIN ---
+    st.subheader("📤 Import Brain")
+    uploaded_brain = st.file_uploader("Upload a saved Brain file", type="json")
+    if uploaded_brain and st.button("🔄 Sync Brain"):
+        data = json.load(uploaded_brain)
+        st.session_state.brain_memory = data.get("memory", "")
+        st.session_state.patterns = data.get("patterns", {})
+        st.session_state.messages = data.get("history", [])
+        st.success("Brain Synced!")
+        st.rerun()
 
     st.divider()
-    # File Sync
-    files = st.file_uploader("Upload Docs", type=["pdf","png","jpg","jpeg"], accept_multiple_files=True)
-    if st.button("⚡ Sync Knowledge"):
-        reader = easyocr.Reader(['fr', 'en'], gpu=False)
+    # OCR Section
+    is_fr = st.checkbox("French Mode", value=True)
+    files = st.file_uploader("Sync Docs (PDF/Img)", type=["pdf","png","jpg"], accept_multiple_files=True)
+    if st.button("⚡ Process Knowledge"):
+        reader = easyocr.Reader(['fr', 'en'] if is_fr else ['en'], gpu=False)
         for f in files:
             if "pdf" in f.type:
                 with pdfplumber.open(f) as pdf:
@@ -55,19 +83,20 @@ with st.sidebar:
                 img = np.array(Image.open(f))
                 txt = " ".join(reader.readtext(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), detail=0))
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
-        st.success("Knowledge Ingested!")
+        st.success("Knowledge Core Updated!")
 
 # --- 4. CHAT INTERFACE ---
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 if prompt := st.chat_input("Command FreDèlAi..."):
-    # Pattern Logic (e.g. apple=red_ball)
+    # Pattern Learning Logic
     if "=" in prompt and len(prompt.split("=")) == 2:
         k, v = prompt.split("=")
         st.session_state.patterns[k.strip().lower()] = v.strip()
-        st.toast("Learned!")
+        st.toast(f"Learned: {k} is {v}")
 
+    # Process prompt with learned patterns
     display_p = prompt
     for k, v in st.session_state.patterns.items():
         if k in prompt.lower(): prompt = prompt.lower().replace(k, v)
@@ -76,27 +105,27 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
-        # IMAGE: SD-Turbo is 4x faster than base SDXL
+        # IMAGE LOGIC
         if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
-            with st.spinner("🎨 Quick Painting..."):
+            with st.spinner("🎨 Forcing Image Generation..."):
                 res = call_hf_api(prompt, "stabilityai/sdxl-turbo")
                 if res: st.image(res)
-                else: st.warning("Hugging Face queue is full. Try again in 10s.")
+                else: st.error("Servers are truly jammed. Try 'draw a red ball' to test.")
         
-        # VIDEO: Zeroscope is the only reliable free video model in 2026
+        # VIDEO LOGIC
         elif "video" in display_p.lower():
-            with st.status("🎥 Rendering (Zeroscope)...") as s:
-                res = call_hf_api(prompt, "vdo/zeroscope_v2_576w")
+            with st.status("🎥 Rendering (Hunyuan)...") as s:
+                res = call_hf_api(prompt, "tencent/HunyuanVideo")
                 if res:
                     st.video(res)
-                    s.update(label="Done!", state="complete")
+                    s.update(label="Complete!", state="complete")
                 else:
-                    s.update(label="Server Busy", state="error")
+                    s.update(label="Server Timeout", state="error")
         
-        # TEXT: Groq (Llama 3.3)
+        # TEXT LOGIC (GROQ)
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            ctx = f"Brain: {st.session_state.brain_memory[:2000]}"
+            ctx = f"Context: {st.session_state.brain_memory[:2000]}"
             r = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role":"system","content":f"You are FreDèlAi. {ctx}"}] + st.session_state.messages
@@ -105,5 +134,5 @@ if prompt := st.chat_input("Command FreDèlAi..."):
             st.markdown(ans)
             st.session_state.messages.append({"role": "assistant", "content": ans})
             if "speak" in display_p.lower():
-                gTTS(text=ans[:300], lang='fr').save("v.mp3")
+                gTTS(text=ans[:300], lang='fr' if is_fr else 'en').save("v.mp3")
                 st.audio("v.mp3", autoplay=True)

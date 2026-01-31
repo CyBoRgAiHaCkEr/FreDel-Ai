@@ -1,5 +1,5 @@
 import streamlit as st
-import numpy as np, requests, json, os, io, base64
+import numpy as np, requests, json, os
 import pdfplumber, easyocr, cv2
 from PIL import Image
 from groq import Groq
@@ -52,33 +52,25 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE LOCAL BUFFER ENGINE ---
-def render_buffered_video(prompt):
+# --- 3. THE PHYSICAL MIRROR ENGINE (Kills Broken Icons) ---
+def render_physical_motion(prompt):
     seed = np.random.randint(0, 999999)
-    # Using the high-speed motion-webp format which browsers handle better than MP4
     url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
     
     try:
-        # Step 1: Python fetches the video data behind the scenes
+        # Step 1: Download the data to your computer
         response = requests.get(url, timeout=30)
         if response.status_code == 200:
-            # Step 2: Convert binary data to a Base64 string
-            video_b64 = base64.b64encode(response.content).decode()
+            # Step 2: Save it as a real file in your folder
+            with open("temp_motion.webp", "wb") as f:
+                f.write(response.content)
             
-            # Step 3: Use a native HTML container to play it from local memory
-            st.markdown(
-                f'''
-                <div style="text-align:center;">
-                    <img src="data:image/webp;base64,{video_b64}" style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                    <p style="color:#00ffcc; margin-top:10px;">✨ FreDèlAi Motion Active (Buffered)</p>
-                </div>
-                ''', 
-                unsafe_allow_html=True
-            )
+            # Step 3: Show the LOCAL file (Browsers always trust local files)
+            st.image("temp_motion.webp", caption="✨ FreDèlAi Motion Physical Link", use_container_width=True)
         else:
-            st.error("Server is a bit slow. Hit enter again!")
+            st.error("Engine is cooling down. Try again in 5 seconds!")
     except Exception as e:
-        st.error(f"Buffer Error: {e}")
+        st.error(f"Hardware Sync Error: {e}")
 
 # --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
@@ -103,8 +95,8 @@ if prompt := st.chat_input("Command FreDèlAi..."):
             st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
         
         elif "video" in display_p.lower():
-            with st.spinner("🚀 Buffering Motion Feed..."):
-                render_buffered_video(prompt)
+            with st.spinner("🛠️ Forging Motion File..."):
+                render_physical_motion(prompt)
         
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])

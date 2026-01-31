@@ -1,5 +1,5 @@
 import streamlit as st
-import numpy as np, requests, json, os
+import numpy as np, requests, json, os, tempfile
 import pdfplumber, easyocr, cv2
 from PIL import Image
 from groq import Groq
@@ -52,7 +52,30 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. MAIN CHAT ---
+# --- 3. THE GHOST VIDEO ENGINE (Bypasses Broken Icons) ---
+def render_real_video(prompt):
+    seed = np.random.randint(0, 999999)
+    # We point to a dedicated video generation node
+    url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?width=1024&height=1024&seed={seed}&model=video&nologo=true"
+    
+    try:
+        # Step 1: Download the actual video file into RAM
+        response = requests.get(url, timeout=60)
+        if response.status_code == 200:
+            # Step 2: Create a temporary file on your computer
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_file:
+                tmp_file.write(response.content)
+                tmp_file_path = tmp_file.name
+            
+            # Step 3: Use the NATIVE video player to play the local file
+            st.video(tmp_file_path, format="video/mp4", loop=True, autoplay=True)
+            st.caption("✨ FreDèlAi Motion Engine: Local Link Established")
+        else:
+            st.error("Video server is busy. Try again in 10 seconds!")
+    except Exception as e:
+        st.error(f"Video Link Error: {e}")
+
+# --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
@@ -70,18 +93,17 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
-        # We handle "image" and "video" exactly the same way now 
-        # to ensure the browser doesn't get confused by the file type.
-        if any(x in display_p.lower() for x in ["draw", "image", "paint", "video"]):
-            with st.spinner("🚀 Generating Motion..."):
-                seed = np.random.randint(0, 999999)
-                clean_p = prompt.replace(' ', '%20')
-                # We use the TURBO model for instant motion
-                url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
-                
-                # Using NATIVE st.image instead of HTML blocks the "broken icon" error
-                st.image(url, caption="✨ FreDèlAi Motion Active", use_container_width=True)
+        # IMAGE COMMAND
+        if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
+            seed = np.random.randint(0, 99999)
+            st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
         
+        # VIDEO COMMAND (The Ghost File Fix)
+        elif "video" in display_p.lower():
+            with st.spinner("🎥 Downloading Motion Stream to Core..."):
+                render_real_video(prompt)
+        
+        # TEXT COMMAND
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             ctx = f"Brain Memory: {st.session_state.brain_memory[:2000]}"

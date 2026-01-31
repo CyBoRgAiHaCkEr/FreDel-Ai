@@ -1,5 +1,5 @@
 import streamlit as st
-import numpy as np, requests, json, os, base64
+import numpy as np, requests, json, os
 import pdfplumber, easyocr, cv2
 from PIL import Image
 from groq import Groq
@@ -23,7 +23,6 @@ with st.sidebar:
         st.image("logo.png", use_container_width=True)
     else:
         st.title("🤖 FreDèlAi")
-        st.caption("Place 'logo.png' in folder for branding")
     
     st.divider()
     if "messages" not in st.session_state: st.session_state.messages = []
@@ -53,38 +52,7 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE IMMORTAL MOTION ENGINE (No Black Screens) ---
-def render_immortal_motion(prompt):
-    seed = np.random.randint(0, 999999)
-    clean_p = prompt.replace(" ", "%20")
-    # This URL specifically requests an animated WEBP/GIF hybrid
-    url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
-    
-    try:
-        # Step 1: Download the binary data directly
-        resp = requests.get(url, timeout=40)
-        if resp.status_code == 200:
-            # Step 2: Convert to Base64 (This embeds it in the page so it can't be blocked)
-            b64_data = base64.b64encode(resp.content).decode()
-            
-            # Step 3: Render as an Image, NOT a Video Player
-            # This is the secret to avoiding the "Black Screen of Doom"
-            st.markdown(
-                f'''
-                <div style="text-align:center;">
-                    <img src="data:image/webp;base64,{b64_data}" 
-                         style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                    <p style="color:#00ffcc; margin-top:10px; font-weight:bold;">✨ FreDèlAi Motion Engine Solidified</p>
-                </div>
-                ''', 
-                unsafe_allow_html=True
-            )
-        else:
-            st.error("Engine is currently overclocked. Try again in 5 seconds!")
-    except Exception as e:
-        st.error(f"Sync Interrupted: {e}")
-
-# --- 4. MAIN CHAT ---
+# --- 3. MAIN CHAT ---
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
@@ -102,13 +70,17 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
-        if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
-            seed = np.random.randint(0, 99999)
-            st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
-        
-        elif "video" in display_p.lower():
-            with st.spinner("🚀 Bypassing Black Screen... Generating Motion..."):
-                render_immortal_motion(prompt)
+        # We handle "image" and "video" exactly the same way now 
+        # to ensure the browser doesn't get confused by the file type.
+        if any(x in display_p.lower() for x in ["draw", "image", "paint", "video"]):
+            with st.spinner("🚀 Generating Motion..."):
+                seed = np.random.randint(0, 999999)
+                clean_p = prompt.replace(' ', '%20')
+                # We use the TURBO model for instant motion
+                url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
+                
+                # Using NATIVE st.image instead of HTML blocks the "broken icon" error
+                st.image(url, caption="✨ FreDèlAi Motion Active", use_container_width=True)
         
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])

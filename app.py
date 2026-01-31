@@ -13,24 +13,17 @@ for key in ["brain_memory", "messages", "patterns"]:
     if key not in st.session_state:
         st.session_state[key] = [] if key == "messages" else ("" if key == "brain_memory" else {})
 
-# --- 2. RESILIENT MULTI-MODEL ENGINE ---
-def call_hf_api(prompt, primary_model, fallback_model=None):
+# --- 2. THE RESILIENT API ENGINES ---
+def call_hf_api(prompt, model_id):
+    """Used specifically for Video (Hugging Face)"""
+    url = f"https://api-inference.huggingface.co/models/{model_id}"
     headers = {"Authorization": f"Bearer {st.secrets['HF_TOKEN']}", "X-Wait-For-Model": "true"}
-    
-    for model in [primary_model, fallback_model]:
-        if not model: continue
-        url = f"https://api-inference.huggingface.co/models/{model}"
-        
-        for i in range(3): # 3 Retries per model
-            try:
-                resp = requests.post(url, headers=headers, json={"inputs": prompt}, timeout=45)
-                if resp.status_code == 200 and len(resp.content) > 1000:
-                    return resp.content
-                if resp.status_code == 503:
-                    st.toast(f"⏳ Waking up {model.split('/')[-1]}...")
-                    time.sleep(10)
-            except:
-                continue
+    try:
+        resp = requests.post(url, headers=headers, json={"inputs": prompt}, timeout=100)
+        if resp.status_code == 200 and len(resp.content) > 1000:
+            return resp.content
+    except:
+        return None
     return None
 
 # --- 3. SIDEBAR: THE BRAIN PORT (UPLOAD/DOWNLOAD) ---
@@ -71,13 +64,14 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
 if prompt := st.chat_input("Command FreDèlAi..."):
-    # Pattern Logic
+    # Pattern Learning Logic (e.g. apple=red_ball)
     if "=" in prompt and len(prompt.split("=")) == 2:
         k, v = prompt.split("=")
         st.session_state.patterns[k.strip().lower()] = v.strip()
-        st.toast(f"Learned: {k}")
+        st.toast(f"Pattern Learned!")
 
     display_p = prompt
+    # Apply patterns to the prompt
     for k, v in st.session_state.patterns.items():
         if k in prompt.lower(): prompt = prompt.lower().replace(k, v)
 
@@ -85,27 +79,29 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
-        # IMAGE: SD-Turbo (Primary) -> SD-1.5 (Fallback)
+        # IMAGE: Bypasses HF Queues using Pollinations
         if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
-            with st.spinner("🎨 Creating..."):
-                res = call_hf_api(prompt, "stabilityai/sdxl-turbo", "runwayml/stable-diffusion-v1-5")
-                if res: st.image(res)
-                else: st.error("Image servers are fully jammed. Try again in 2 mins.")
+            with st.spinner("🎨 Generating Instant Image..."):
+                seed = np.random.randint(0, 99999)
+                # Clean prompt for URL
+                clean_p = prompt.replace(" ", "%20")
+                img_url = f"https://image.pollinations.ai/prompt/{clean_p}?seed={seed}&nologo=true&width=1024&height=1024"
+                st.image(img_url, caption=f"FreDèlAi Vision: {display_p}")
         
-        # VIDEO: Zeroscope (Only reliable free one)
+        # VIDEO: Zeroscope (Requires HF Token)
         elif "video" in display_p.lower():
-            with st.status("🎥 Rendering...") as s:
+            with st.status("🎥 Rendering Video...") as s:
                 res = call_hf_api(prompt, "vdo/zeroscope_v2_576w")
                 if res:
                     st.video(res)
                     s.update(label="Complete!", state="complete")
                 else:
-                    s.update(label="Timed Out", state="error")
+                    s.update(label="HF Server Busy (Video Only)", state="error")
         
-        # TEXT: Groq
+        # TEXT: Groq Llama 3.3
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            ctx = f"Brain Memory: {st.session_state.brain_memory[:1500]}"
+            ctx = f"Brain Memory: {st.session_state.brain_memory[:2000]}"
             r = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role":"system","content":f"You are FreDèlAi. {ctx}"}] + st.session_state.messages

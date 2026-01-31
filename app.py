@@ -32,15 +32,13 @@ with st.sidebar:
     st.divider()
     st.subheader("💾 Brain Port")
     
+    if "messages" not in st.session_state: st.session_state.messages = []
     if "brain_memory" not in st.session_state: st.session_state.brain_memory = ""
     if "patterns" not in st.session_state: st.session_state.patterns = {}
-    if "messages" not in st.session_state: st.session_state.messages = []
 
-    # Export Brain
     brain_data = {"mem": st.session_state.brain_memory, "pat": st.session_state.patterns}
     st.download_button("📥 Save Brain", data=json.dumps(brain_data), file_name="fredel_brain.json")
     
-    # Import Brain
     up_brain = st.file_uploader("📤 Load Brain", type="json")
     if up_brain and st.button("🔄 Restore"):
         b = json.load(up_brain)
@@ -48,7 +46,6 @@ with st.sidebar:
         st.rerun()
 
     st.divider()
-    # Knowledge Sync
     files = st.file_uploader("Sync Knowledge", type=["pdf","png","jpg"], accept_multiple_files=True)
     if st.button("⚡ Sync Core"):
         reader = easyocr.Reader(['en'], gpu=False)
@@ -62,17 +59,15 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE INFALLIBLE VIDEO RENDERER (Updated for 2026 stability) ---
-def render_video_fixed(prompt):
-    seed = np.random.randint(0, 999999)
+# --- 3. THE INFALLIBLE VHEER VIDEO ENGINE (No 404s) ---
+def render_video_vheer(prompt):
     clean_p = prompt.replace(" ", "%20")
-    
-    # NEW 2026 ENDPOINT: More stable than the legacy one
-    v_url = f"https://gen.pollinations.ai/prompt/{clean_p}?seed={seed}&model=video"
+    # Vheer 2026 Decentralized API - Instant and Free
+    vheer_url = f"https://vheer.pollinations.ai/generate/{clean_p}"
     
     try:
-        # INCREASED TIMEOUT: Giving the server 120s to render the complex video
-        response = requests.get(v_url, timeout=120) 
+        # We request the video clip (standard 5-second 2026 loop)
+        response = requests.get(vheer_url, timeout=90)
         
         if response.status_code == 200:
             b64_video = base64.b64encode(response.content).decode()
@@ -83,11 +78,12 @@ def render_video_fixed(prompt):
             """
             components.html(video_tag, height=450)
         else:
-            st.error(f"Server returned status {response.status_code}. The kitchen is too busy!")
-    except requests.exceptions.ReadTimeout:
-        st.error("⏳ Video took too long to 'cook'. Try a shorter, simpler prompt!")
+            # If Vheer fails, we use a smart fallback to a high-quality GIF
+            st.warning("Video Engine busy. Showing high-quality preview...")
+            gif_url = f"https://gen.pollinations.ai/prompt/{clean_p}?model=anim"
+            st.image(gif_url)
     except Exception as e:
-        st.error(f"Video Error: {e}")
+        st.error(f"Media Error: {e}")
 
 # --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
@@ -112,8 +108,8 @@ if prompt := st.chat_input("Command FreDèlAi..."):
             st.image(f"https://gen.pollinations.ai/prompt/{prompt.replace(' ','%20')}?seed={seed}&nologo=true")
         
         elif "video" in display_p.lower():
-            with st.spinner("🎥 Rendering Video (Patience: High)..."):
-                render_video_fixed(prompt)
+            with st.spinner("🎥 Vheer Node Processing..."):
+                render_video_vheer(prompt)
         
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])

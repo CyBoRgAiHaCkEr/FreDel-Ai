@@ -3,7 +3,6 @@ import numpy as np, requests, time, json, os, base64
 import pdfplumber, easyocr, cv2
 from PIL import Image
 from groq import Groq
-import streamlit.components.v1 as components
 
 # --- 1. CONFIG & BRANDING ---
 st.set_page_config(page_title="FreDèlAi Infinity", page_icon="♾️", layout="wide")
@@ -55,29 +54,33 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE NO-BROKE MOTION ENGINE ---
-def render_motion_fixed(prompt):
+# --- 3. THE FORCE-FEED VISION ENGINE (Fixes Broken Icons) ---
+def render_motion_ultimate(prompt):
     seed = np.random.randint(0, 999999)
     clean_p = prompt.replace(" ", "%20")
-    # Using the rock-solid stable endpoint
+    
+    # We use a high-reliability animated endpoint
     url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
     
     try:
-        # We download the data first to bypass the "Broken Image" icon
-        resp = requests.get(url, timeout=20)
+        # We download the file completely to avoid the "Broken Icon"
+        resp = requests.get(url, timeout=30)
         if resp.status_code == 200:
-            b64 = base64.b64encode(resp.content).decode()
-            # Force display via Base64 Injection
-            st.markdown(f"""
-                <div style="text-align:center;">
-                    <img src="data:image/webp;base64,{b64}" style="width:100%; border-radius:15px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
-                    <p style="color:gray; margin-top:10px;">✨ FreDèlAi Motion Engine Active</p>
-                </div>
-            """, unsafe_allow_html=True)
+            # Convert binary data to a Base64 string the browser can't block
+            b64_data = base64.b64encode(resp.content).decode()
+            
+            # Using st.markdown with a data-URI is the most compatible way to show motion
+            st.markdown(
+                f'<div style="text-align:center;">'
+                f'<img src="data:image/webp;base64,{b64_data}" style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">'
+                f'<p style="color:#00ffcc; margin-top:10px; font-weight:bold;">✨ FreDèlAi Motion Link Established</p>'
+                f'</div>', 
+                unsafe_allow_html=True
+            )
         else:
-            st.error("Server is napping. Try again in 10 seconds.")
-    except:
-        st.error("Connection glitch. Check your internet!")
+            st.error("Engine warming up. Please try again in 5 seconds.")
+    except Exception as e:
+        st.error(f"Visual Link Error: {e}")
 
 # --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
@@ -97,14 +100,17 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
+        # IMAGES
         if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
             seed = np.random.randint(0, 99999)
             st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
         
+        # MOTION (FIXED VIDEO)
         elif "video" in display_p.lower():
-            with st.spinner("🎥 Igniting Motion Engine..."):
-                render_motion_fixed(prompt)
+            with st.spinner("🚀 Launching Motion Engine..."):
+                render_motion_ultimate(prompt)
         
+        # TEXT
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             ctx = f"Brain Memory: {st.session_state.brain_memory[:2000]}"

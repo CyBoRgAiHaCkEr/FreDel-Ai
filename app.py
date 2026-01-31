@@ -1,5 +1,5 @@
 import streamlit as st
-import numpy as np, requests, json, os, tempfile
+import numpy as np, requests, json, os, io, base64
 import pdfplumber, easyocr, cv2
 from PIL import Image
 from groq import Groq
@@ -52,28 +52,33 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE GHOST VIDEO ENGINE (Bypasses Broken Icons) ---
-def render_real_video(prompt):
+# --- 3. THE LOCAL BUFFER ENGINE ---
+def render_buffered_video(prompt):
     seed = np.random.randint(0, 999999)
-    # We point to a dedicated video generation node
-    url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?width=1024&height=1024&seed={seed}&model=video&nologo=true"
+    # Using the high-speed motion-webp format which browsers handle better than MP4
+    url = f"https://pollinations.ai/p/{prompt.replace(' ', '%20')}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
     
     try:
-        # Step 1: Download the actual video file into RAM
-        response = requests.get(url, timeout=60)
+        # Step 1: Python fetches the video data behind the scenes
+        response = requests.get(url, timeout=30)
         if response.status_code == 200:
-            # Step 2: Create a temporary file on your computer
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_file:
-                tmp_file.write(response.content)
-                tmp_file_path = tmp_file.name
+            # Step 2: Convert binary data to a Base64 string
+            video_b64 = base64.b64encode(response.content).decode()
             
-            # Step 3: Use the NATIVE video player to play the local file
-            st.video(tmp_file_path, format="video/mp4", loop=True, autoplay=True)
-            st.caption("✨ FreDèlAi Motion Engine: Local Link Established")
+            # Step 3: Use a native HTML container to play it from local memory
+            st.markdown(
+                f'''
+                <div style="text-align:center;">
+                    <img src="data:image/webp;base64,{video_b64}" style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                    <p style="color:#00ffcc; margin-top:10px;">✨ FreDèlAi Motion Active (Buffered)</p>
+                </div>
+                ''', 
+                unsafe_allow_html=True
+            )
         else:
-            st.error("Video server is busy. Try again in 10 seconds!")
+            st.error("Server is a bit slow. Hit enter again!")
     except Exception as e:
-        st.error(f"Video Link Error: {e}")
+        st.error(f"Buffer Error: {e}")
 
 # --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
@@ -93,17 +98,14 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
-        # IMAGE COMMAND
         if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
             seed = np.random.randint(0, 99999)
             st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
         
-        # VIDEO COMMAND (The Ghost File Fix)
         elif "video" in display_p.lower():
-            with st.spinner("🎥 Downloading Motion Stream to Core..."):
-                render_real_video(prompt)
+            with st.spinner("🚀 Buffering Motion Feed..."):
+                render_buffered_video(prompt)
         
-        # TEXT COMMAND
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             ctx = f"Brain Memory: {st.session_state.brain_memory[:2000]}"

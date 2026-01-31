@@ -11,11 +11,8 @@ st.set_page_config(page_title="FreDèlAi Infinity", page_icon="♾️", layout="
 st.markdown("""
     <style>
     [data-testid="stSidebar"] img {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-        border-radius: 10px;
-        margin-bottom: 20px;
+        display: block; margin-left: auto; margin-right: auto;
+        border-radius: 10px; margin-bottom: 20px;
     }
     .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
     </style>
@@ -32,12 +29,11 @@ with st.sidebar:
     st.divider()
     st.subheader("💾 Brain Port")
     
-    if "messages" not in st.session_state: st.session_state.messages = []
-    if "brain_memory" not in st.session_state: st.session_state.brain_memory = ""
-    if "patterns" not in st.session_state: st.session_state.patterns = {}
+    for key in ["messages", "brain_memory", "patterns"]:
+        if key not in st.session_state:
+            st.session_state[key] = [] if key == "messages" else ("" if key == "brain_memory" else {})
 
-    brain_data = {"mem": st.session_state.brain_memory, "pat": st.session_state.patterns}
-    st.download_button("📥 Save Brain", data=json.dumps(brain_data), file_name="fredel_brain.json")
+    st.download_button("📥 Save Brain", data=json.dumps({"mem": st.session_state.brain_memory, "pat": st.session_state.patterns}), file_name="fredel_brain.json")
     
     up_brain = st.file_uploader("📤 Load Brain", type="json")
     if up_brain and st.button("🔄 Restore"):
@@ -59,23 +55,29 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE SOLID-STATE VIDEO ENGINE (Zero-DNS-Errors) ---
-def render_solid_video(prompt):
+# --- 3. THE NO-BROKE MOTION ENGINE ---
+def render_motion_fixed(prompt):
     seed = np.random.randint(0, 999999)
     clean_p = prompt.replace(" ", "%20")
+    # Using the rock-solid stable endpoint
+    url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
     
-    # We use the 'Turbo' animated model on the stable main domain
-    # This is effectively a high-FPS video loop that never 404s
-    video_url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
-    
-    # We use a custom HTML container to make it look like a pro video player
-    video_html = f"""
-        <div style="width:100%; text-align:center;">
-            <img src="{video_url}" style="width:100%; border-radius:15px; box-shadow: 0px 4px 15px rgba(0,0,0,0.3);">
-            <p style="color:gray; font-size:12px; margin-top:5px;">FreDèlAi Infinity Motion active</p>
-        </div>
-    """
-    components.html(video_html, height=500)
+    try:
+        # We download the data first to bypass the "Broken Image" icon
+        resp = requests.get(url, timeout=20)
+        if resp.status_code == 200:
+            b64 = base64.b64encode(resp.content).decode()
+            # Force display via Base64 Injection
+            st.markdown(f"""
+                <div style="text-align:center;">
+                    <img src="data:image/webp;base64,{b64}" style="width:100%; border-radius:15px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+                    <p style="color:gray; margin-top:10px;">✨ FreDèlAi Motion Engine Active</p>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.error("Server is napping. Try again in 10 seconds.")
+    except:
+        st.error("Connection glitch. Check your internet!")
 
 # --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
@@ -101,7 +103,7 @@ if prompt := st.chat_input("Command FreDèlAi..."):
         
         elif "video" in display_p.lower():
             with st.spinner("🎥 Igniting Motion Engine..."):
-                render_solid_video(prompt)
+                render_motion_fixed(prompt)
         
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])

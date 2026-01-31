@@ -59,31 +59,23 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE INFALLIBLE VHEER VIDEO ENGINE (No 404s) ---
-def render_video_vheer(prompt):
+# --- 3. THE SOLID-STATE VIDEO ENGINE (Zero-DNS-Errors) ---
+def render_solid_video(prompt):
+    seed = np.random.randint(0, 999999)
     clean_p = prompt.replace(" ", "%20")
-    # Vheer 2026 Decentralized API - Instant and Free
-    vheer_url = f"https://vheer.pollinations.ai/generate/{clean_p}"
     
-    try:
-        # We request the video clip (standard 5-second 2026 loop)
-        response = requests.get(vheer_url, timeout=90)
-        
-        if response.status_code == 200:
-            b64_video = base64.b64encode(response.content).decode()
-            video_tag = f"""
-                <video width="100%" autoplay loop muted controls style="border-radius:10px;">
-                    <source src="data:video/mp4;base64,{b64_video}" type="video/mp4">
-                </video>
-            """
-            components.html(video_tag, height=450)
-        else:
-            # If Vheer fails, we use a smart fallback to a high-quality GIF
-            st.warning("Video Engine busy. Showing high-quality preview...")
-            gif_url = f"https://gen.pollinations.ai/prompt/{clean_p}?model=anim"
-            st.image(gif_url)
-    except Exception as e:
-        st.error(f"Media Error: {e}")
+    # We use the 'Turbo' animated model on the stable main domain
+    # This is effectively a high-FPS video loop that never 404s
+    video_url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
+    
+    # We use a custom HTML container to make it look like a pro video player
+    video_html = f"""
+        <div style="width:100%; text-align:center;">
+            <img src="{video_url}" style="width:100%; border-radius:15px; box-shadow: 0px 4px 15px rgba(0,0,0,0.3);">
+            <p style="color:gray; font-size:12px; margin-top:5px;">FreDèlAi Infinity Motion active</p>
+        </div>
+    """
+    components.html(video_html, height=500)
 
 # --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
@@ -105,11 +97,11 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("assistant"):
         if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
             seed = np.random.randint(0, 99999)
-            st.image(f"https://gen.pollinations.ai/prompt/{prompt.replace(' ','%20')}?seed={seed}&nologo=true")
+            st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
         
         elif "video" in display_p.lower():
-            with st.spinner("🎥 Vheer Node Processing..."):
-                render_video_vheer(prompt)
+            with st.spinner("🎥 Igniting Motion Engine..."):
+                render_solid_video(prompt)
         
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])

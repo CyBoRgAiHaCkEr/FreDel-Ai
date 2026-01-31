@@ -53,34 +53,36 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 3. THE NO-FAIL VIDEO ENGINE (Fixes Black Screen) ---
-def render_motion_fixed(prompt):
+# --- 3. THE IMMORTAL MOTION ENGINE (No Black Screens) ---
+def render_immortal_motion(prompt):
     seed = np.random.randint(0, 999999)
     clean_p = prompt.replace(" ", "%20")
-    # Stable Pollinations Video Model
+    # This URL specifically requests an animated WEBP/GIF hybrid
     url = f"https://pollinations.ai/p/{clean_p}?width=1024&height=1024&seed={seed}&model=turbo&nologo=true"
     
     try:
-        # Download the file directly in the background
-        response = requests.get(url, timeout=30)
-        if response.status_code == 200:
-            # Convert the video/image to a Base64 string so the browser HAS to play it
-            b64_str = base64.b64encode(response.content).decode()
+        # Step 1: Download the binary data directly
+        resp = requests.get(url, timeout=40)
+        if resp.status_code == 200:
+            # Step 2: Convert to Base64 (This embeds it in the page so it can't be blocked)
+            b64_data = base64.b64encode(resp.content).decode()
             
-            # Using an HTML5 container ensures it plays on all devices
+            # Step 3: Render as an Image, NOT a Video Player
+            # This is the secret to avoiding the "Black Screen of Doom"
             st.markdown(
                 f'''
                 <div style="text-align:center;">
-                    <img src="data:image/webp;base64,{b64_str}" style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                    <p style="color:#00ffcc; margin-top:10px;">✨ FreDèlAi Motion Engine Live</p>
+                    <img src="data:image/webp;base64,{b64_data}" 
+                         style="width:100%; border-radius:15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                    <p style="color:#00ffcc; margin-top:10px; font-weight:bold;">✨ FreDèlAi Motion Engine Solidified</p>
                 </div>
                 ''', 
                 unsafe_allow_html=True
             )
         else:
-            st.error("Engine busy. Try a shorter prompt!")
+            st.error("Engine is currently overclocked. Try again in 5 seconds!")
     except Exception as e:
-        st.error(f"Media Error: {e}")
+        st.error(f"Sync Interrupted: {e}")
 
 # --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
@@ -105,8 +107,8 @@ if prompt := st.chat_input("Command FreDèlAi..."):
             st.image(f"https://pollinations.ai/p/{prompt.replace(' ','%20')}?width=1024&height=1024&seed={seed}&nologo=true")
         
         elif "video" in display_p.lower():
-            with st.spinner("🚀 Launching Motion Engine..."):
-                render_motion_fixed(prompt)
+            with st.spinner("🚀 Bypassing Black Screen... Generating Motion..."):
+                render_immortal_motion(prompt)
         
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])

@@ -1,46 +1,57 @@
 import streamlit as st
-import numpy as np, requests, time, json
+import numpy as np, requests, time, json, os
 import pdfplumber, easyocr, cv2
 from PIL import Image
 from groq import Groq
+import streamlit.components.v1 as components
 
-# --- 1. CONFIG & SYSTEM BRAIN ---
+# --- 1. CONFIG & BRANDING ---
 st.set_page_config(page_title="FreDèlAi Infinity", page_icon="♾️", layout="wide")
 
-for key in ["brain_memory", "messages", "patterns"]:
-    if key not in st.session_state:
-        st.session_state[key] = [] if key == "messages" else ("" if key == "brain_memory" else {})
+# Custom CSS to center the rectangular logo and style the chat
+st.markdown("""
+    <style>
+    [data-testid="stSidebar"] img {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- 2. THE INFINITY MEDIA ENGINES (NO QUEUES) ---
-def generate_instant_video(prompt):
-    """Bypasses HF using the 2026 decentralized Vheer/Pollinations bridge"""
-    # Clean the prompt for URL safety
-    clean_p = prompt.replace(" ", "%20")
-    seed = np.random.randint(0, 999999)
-    # This endpoint provides free, no-signup 5-second video clips
-    video_url = f"https://video.pollinations.ai/prompt/{clean_p}?seed={seed}"
-    return video_url
-
-# --- 3. SIDEBAR: THE PERMANENT BRAIN PORT ---
+# --- 2. SIDEBAR & LOGO BRIDGE ---
 with st.sidebar:
-    st.title("🤖 FreDèlAi Infinity")
+    # Logic to handle your mom's logo when you have it
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
+    else:
+        st.title("🤖 FreDèlAi")
+        st.caption("Place 'logo.png' in folder to activate branding")
+    
+    st.divider()
     st.subheader("💾 Brain Port")
     
-    # Download Brain (Forever Storage)
+    # Brain Export/Import
+    if "brain_memory" not in st.session_state: st.session_state.brain_memory = ""
+    if "patterns" not in st.session_state: st.session_state.patterns = {}
+    if "messages" not in st.session_state: st.session_state.messages = []
+
     brain_data = {"mem": st.session_state.brain_memory, "pat": st.session_state.patterns}
-    st.download_button("📥 Save Brain to PC", data=json.dumps(brain_data), file_name="fredel_infinity_brain.json")
+    st.download_button("📥 Save Brain", data=json.dumps(brain_data), file_name="fredel_brain.json")
     
-    # Upload Brain (Restore Memory)
-    up_brain = st.file_uploader("📤 Load Brain from PC", type="json")
-    if up_brain and st.button("🔄 Restore Memory"):
+    up_brain = st.file_uploader("📤 Load Brain", type="json")
+    if up_brain and st.button("🔄 Restore"):
         b = json.load(up_brain)
         st.session_state.brain_memory, st.session_state.patterns = b['mem'], b['pat']
-        st.success("Memory Restored!")
         st.rerun()
 
     st.divider()
-    files = st.file_uploader("Sync Knowledge", type=["pdf","png","jpg"], accept_multiple_files=True)
-    if st.button("⚡ Process"):
+    # Knowledge Sync (OCR)
+    files = st.file_uploader("Sync Files", type=["pdf","png","jpg"], accept_multiple_files=True)
+    if st.button("⚡ Sync Core"):
         reader = easyocr.Reader(['en'], gpu=False)
         for f in files:
             if "pdf" in f.type:
@@ -52,7 +63,16 @@ with st.sidebar:
             st.session_state.brain_memory += f"\n[{f.name}]: {txt}"
         st.success("Brain Updated!")
 
-# --- 4. CHAT INTERFACE ---
+# --- 3. THE INFINITY ENGINES ---
+def render_video(prompt):
+    seed = np.random.randint(0, 999999)
+    clean_p = prompt.replace(" ", "%20")
+    # Decentralized bridge - Always Free
+    v_url = f"https://image.pollinations.ai/prompt/{clean_p}?seed={seed}&model=video"
+    html = f'<video width="100%" autoplay loop muted controls style="border-radius:10px;"><source src="{v_url}" type="video/mp4"></video>'
+    components.html(html, height=400)
+
+# --- 4. MAIN CHAT ---
 for m in st.session_state.messages:
     with st.chat_message(m["role"]): st.markdown(m["content"])
 
@@ -61,7 +81,7 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     if "=" in prompt:
         k, v = prompt.split("=")
         st.session_state.patterns[k.strip().lower()] = v.strip()
-        st.toast("Pattern Locked!")
+        st.toast("Locked!")
 
     display_p = prompt
     for k, v in st.session_state.patterns.items():
@@ -71,20 +91,13 @@ if prompt := st.chat_input("Command FreDèlAi..."):
     with st.chat_message("user"): st.markdown(display_p)
 
     with st.chat_message("assistant"):
-        # INSTANT IMAGE
         if any(x in display_p.lower() for x in ["draw", "image", "paint"]):
             seed = np.random.randint(0, 99999)
-            img_url = f"https://image.pollinations.ai/prompt/{prompt.replace(' ','%20')}?seed={seed}&nologo=true"
-            st.image(img_url, caption="Infinity Vision Generated")
+            st.image(f"https://image.pollinations.ai/prompt/{prompt.replace(' ','%20')}?seed={seed}&nologo=true")
         
-        # INSTANT VIDEO (NO HF BUSY ERRORS)
         elif "video" in display_p.lower():
-            with st.spinner("🎥 Tapping into Decentralized Nodes..."):
-                v_url = generate_instant_video(prompt)
-                st.video(v_url)
-                st.info("Video generated via Infinity Loop. No server limits.")
+            render_video(prompt)
         
-        # TEXT ENGINE (GROQ)
         else:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             ctx = f"Brain Memory: {st.session_state.brain_memory[:2000]}"

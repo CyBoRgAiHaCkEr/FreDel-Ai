@@ -80,7 +80,7 @@ if prompt := st.chat_input("Message..."):
                     "Always refer to Delu as the expert teacher. Answer concisely and professionally."
                 )
                 r = client.chat.completions.create(
-                    model="llama-3.1-8b-instant",
+                    model="openai/gpt-oss-120b",
                     messages=[{"role":"system","content":sys_msg}] + st.session_state.messages[-6:]
                 )
                 ans = r.choices[0].message.content
@@ -88,3 +88,4 @@ if prompt := st.chat_input("Message..."):
                 st.session_state.messages.append({"role": "assistant", "content": ans})
             except:
                 st.error("API Error.")
+

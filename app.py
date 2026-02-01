@@ -3,81 +3,89 @@ import os, numpy as np, requests, time, json, base64
 import pdfplumber, easyocr, cv2
 from PIL import Image
 from groq import Groq
-from gtts import gTTS
 
-# --- 1. CONFIG ---
-st.set_page_config(page_title="FreDèlAi Infinity", page_icon="🤖", layout="wide")
+# --- 1. CONFIG & STATE ---
+st.set_page_config(page_title="FreDèlAi Infinity", layout="wide")
 
 if "messages" not in st.session_state: st.session_state.messages = []
 if "patterns" not in st.session_state: st.session_state.patterns = {}
 if "brain_memory" not in st.session_state: 
-    st.session_state.brain_memory = "NAME: Delu (FreDèlAi). LOCATION: Mumbai. ROLE: French Systems-Driven Educator."
+    st.session_state.brain_memory = "Core: Delu, Mumbai-based French Educator."
 
-# --- 2. IMAGE ENGINE ---
-def get_safe_image(prompt, manual_seed):
-    clean_p = prompt.replace(" ", "%20")
-    url = f"https://pollinations.ai/p/{clean_p}?model=flux&seed={manual_seed}&nologo=true"
-    try:
-        resp = requests.get(url, timeout=20)
-        if resp.status_code == 200 and len(resp.content) > 15000:
-            b64 = base64.b64encode(resp.content).decode()
-            return f'<img src="data:image/png;base64,{b64}" style="width:100%; border-radius:15px; border: 2px solid #00ffcc;">'
-    except: pass
-    return "⚠️ Server busy. Try a new seed."
-
-# --- 3. SIDEBAR ---
+# --- 2. SIDEBAR (LOGO, BRAIN PORT, OCR) ---
 with st.sidebar:
     if os.path.exists("logo.jpg"): st.image("logo.jpg", width='stretch')
     elif os.path.exists("logo.png"): st.image("logo.png", width='stretch')
     
     st.divider()
-    v_seed = st.number_input("Vision Seed", value=42, step=1)
-    
-    st.subheader("💾 Brain Port")
+    st.subheader("💾 Brain Control")
     brain_data = {"mem": st.session_state.brain_memory, "patterns": st.session_state.patterns}
     st.download_button("📥 Download Brain", data=json.dumps(brain_data), file_name="delu_brain.json")
     
     up_brain = st.file_uploader("📤 Upload Brain", type="json")
-    if up_brain and st.button("🔄 Sync Brain"):
+    if up_brain and st.button("🔄 Force Sync"):
         b = json.load(up_brain)
-        st.session_state.brain_memory = b.get('mem', st.session_state.brain_memory)
+        st.session_state.brain_memory = b.get('mem', "")
         st.session_state.patterns = b.get('patterns', {})
-        st.success("Memory Restored!")
+        st.rerun()
 
-# --- 4. CHAT LOGIC ---
+    st.divider()
+    st.subheader("🔍 OCR Engine")
+    is_fr = st.toggle("French Mode", value=False)
+    files = st.file_uploader("Sync Worksheets (PDF/IMG)", type=["pdf","png","jpg"], accept_multiple_files=True)
+    if st.button("⚡ Run OCR"):
+        with st.spinner("Reading knowledge..."):
+            reader = easyocr.Reader(['en', 'fr'] if is_fr else ['en'], gpu=False)
+            for f in files:
+                if "pdf" in f.type:
+                    with pdfplumber.open(f) as pdf:
+                        txt = " ".join([p.extract_text() or "" for p in pdf.pages])
+                else:
+                    img = np.array(Image.open(f))
+                    txt = " ".join(reader.readtext(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), detail=0))
+                # Persistent storage for OCR text
+                st.session_state.brain_memory += f"\n[FILE: {f.name}]: {txt}"
+            st.success("Knowledge embedded in Brain!")
+
+# --- 3. CHAT LOGIC ---
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]): st.markdown(m["content"], unsafe_allow_html=True)
+    with st.chat_message(m["role"]): st.markdown(m["content"])
 
-if prompt := st.chat_input("Talk to FreDèlAi..."):
-    # SMART MEMORY: If you say "X is Y", it remembers it forever in the brain
-    if " is " in prompt.lower() and len(prompt.split()) < 10:
-        st.session_state.brain_memory += f" | Fact: {prompt}"
-        st.toast(f"Memorized: {prompt}")
+if prompt := st.chat_input("Enter command or question..."):
+    # COMMAND LOGIC: If you say "taii is [text]", it saves that shortcut
+    if " is " in prompt.lower() and len(prompt.split()) < 25:
+        key, val = prompt.lower().split(" is ", 1)
+        st.session_state.patterns[key.strip()] = val.strip()
+        st.toast(f"Pattern Set: {key}")
 
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"): st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        if any(x in prompt.lower() for x in ["draw", "image", "paint"]):
-            img_html = get_safe_image(prompt, v_seed)
-            st.markdown(img_html, unsafe_allow_html=True)
-            st.session_state.messages.append({"role": "assistant", "content": img_html})
+        # BYPASS: If word is a shortcut (like 'taii'), print it directly
+        cmd = prompt.lower().strip()
+        if cmd in st.session_state.patterns:
+            ans = st.session_state.patterns[cmd]
+            st.markdown(ans)
+            st.session_state.messages.append({"role": "assistant", "content": ans})
         else:
             try:
                 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-                # We feed the AI the entire accumulated memory so it knows who 'Taii' is.
+                # We show the AI the patterns so it knows them too
+                rules = "\n".join([f"Shortcut '{k}' means: {v}" for k, v in st.session_state.patterns.items()])
+                
                 sys_msg = (
-                    f"You are FreDèlAi (Delu). Your background: {st.session_state.brain_memory}. "
-                    "You have a human-like memory. If the user mentioned a name or fact earlier, use it. "
-                    "Always answer fully and helpfully in the style of a structured educator."
+                    f"You are FreDèlAi (Delu). Profile: {st.session_state.brain_memory}\n"
+                    f"KNOWN SHORTCUTS:\n{rules}\n"
+                    "If the user uses a shortcut word, repeat its meaning. Otherwise, answer as Delu."
                 )
                 
                 r = client.chat.completions.create(
                     model="llama-3.1-8b-instant",
-                    messages=[{"role":"system","content":sys_msg}] + st.session_state.messages[-10:]
+                    messages=[{"role":"system","content":sys_msg}] + st.session_state.messages[-8:]
                 )
                 ans = r.choices[0].message.content
                 st.markdown(ans)
                 st.session_state.messages.append({"role": "assistant", "content": ans})
             except:
-                st.error("Connection lost. Please wait.")
+                st.error("API error. Please wait 60s.")

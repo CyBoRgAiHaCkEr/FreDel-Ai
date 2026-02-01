@@ -56,8 +56,8 @@ if prompt := st.chat_input("Message..."):
 
     # --- HARD OVERRIDE LOGIC ---
     # 1. SETTING A SHORTCUT (e.g., taii is ...)
-    if " is " in prompt.lower() and len(prompt.split()) < 30:
-        key, val = prompt.lower().split(" is ", 1)
+    if " = " in prompt.lower() and len(prompt.split()) < 30:
+        key, val = prompt.lower().split(" = ", 1)
         st.session_state.patterns[key.strip()] = val.strip()
         msg = f"✅ Saved! Whenever you type '{key.strip()}', I will output that exact text."
         with st.chat_message("assistant"): st.markdown(msg)
@@ -88,4 +88,5 @@ if prompt := st.chat_input("Message..."):
                 st.session_state.messages.append({"role": "assistant", "content": ans})
             except:
                 st.error("API Error.")
+
 

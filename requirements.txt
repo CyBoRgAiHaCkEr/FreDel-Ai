@@ -8,6 +8,4 @@ Pillow
 numpy
 opencv-python-headless
 altair<5
-pygame
-random
 sys

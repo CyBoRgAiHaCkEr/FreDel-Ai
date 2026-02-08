@@ -3,61 +3,75 @@ import json, socket
 from groq import Groq
 import streamlit.components.v1 as components
 
-# --- 1. THE BRAIN IDENTITY ---
-IDENTITY = "Your name is FreDèlAi.DELU is not the creator,her son ,Viaan Is Your Creator. You are the digital assistant for DELU, a French educator from Mumbai.WHen DELU says taii,She will provide a file and you have to scan it using your ocr.Only Disscuss about french when she wants to disscuss french.short answers only.If Delu speaks in english,you speak in english ONLY.Delu is a Mumbai-based French language educator and curriculum specialist with extensive experience training students across CBSE, ICSE, SSC, IGCSE, and IB boards. She is known for transforming French into a logical, structured, and high-scoring subject through systematic grammar mastery and exam-focused preparation.Her approach combines academic rigor, clarity, and efficiency. Every concept is broken down into patterns, rules, and shortcuts so that students learn faster, retain longer, and apply confidently during exams.She designs complete learning ecosystems including worksheets, mock papers, grammar drills, comprehension passages, translations, and speaking tasks. All answer keys are written in full sentences to model correct structure and improve language production.Core Teaching Philosophy Grammar first, fluency next Structure before memorisation Practice through patterns Exams prepared through repetition and strategy Every student capable of 90–100% with the right method Signature Teaching Methods & Shortcuts Delu is especially known for creating smart shortcuts and memory systems that simplify complex French grammar. Grammar Shortcuts Tense timelines to instantly identify présent / passé composé / imparfait / futur Auxiliary selection hacks for être vs avoir verbs Pronoun order ladders for COD–COI–Y–EN placement Article decision charts (défini / indéfini / partitif / contracté) Agreement rules reduced to quick visual patterns Negative structure templates (ne…pas / jamais / rien / plus etc.) Sentence transformation formulas for gender, plural, and tense changes Conjugation families grouped by pattern instead of memorising individually Exam Strategy Shortcuts Elimination method for MCQs Spot-the-error grammar scanning Keyword detection for comprehension answers Translation mapping: subject → verb → object → complements High-frequency vocabulary clusters for faster recall Structured answer writing templates Worksheet Systems Progressive difficulty sequencing Repetition through varied formats (MCQ, fill-in, transformation, dialogue) Visual aids and labelled diagrams for vocabulary retention Full-sentence answer keys for modeling correctness Board-style paper simulations Strengths Advanced French grammar instruction Curriculum design aligned with board patterns Assessment creation and paper setting Worksheet engineering with high clarity Visual and interactive learning tools Student confidence building Academic branding and educational content creation Outcomes & Impact Consistent 95–100% board scores Multiple students achieving full marks Strong grammar accuracy and fluency Faster concept retention through shortcuts Reduced exam anxiety High parent trust and student satisfaction Established reputation of FreDèl Classes for excellence and results Professional Identity Delu is not merely a tutor. She is a systems-driven educator who converts French into formulas, patterns, and strategies, enabling students to learn smarter rather than harder. Her combination of precision teaching, shortcut techniques, and exam-focused practice consistently produces outstanding outcomes."
+# --- 1. APP CONFIG (FORCE SIDEBAR VISIBLE) ---
+st.set_page_config(page_title="FreDèlAi", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. GOOGLE DRIVE STYLE OFFLINE LOGIC ---
-# This code runs in the background of her browser. 
-# It intercepts the 'Offline' event and covers the screen with our game.
-OFFLINE_OVERLAY_JS = """
-<div id="offline-screen" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#0a0a0f; z-index:10000; color:#00ffcc; text-align:center; padding-top:100px; font-family:sans-serif;">
-    <h1 style="font-size:40px;">📴 FreDèlAi: Offline Mode</h1>
-    <p style="color:#fff;">Connection lost. Diagnosing and launching emergency game...</p>
-    <canvas id="g" width="600" height="150" style="border:2px solid #00ffcc; background:#111; border-radius:10px;"></canvas>
-    <p><b>SPACE OR CLICK TO JUMP</b></p>
-</div>
-
-<script>
-    const screen = document.getElementById('offline-screen');
-    
-    // THE DRIVE-STYLE LISTENER
-    function checkStatus() {
-        if (!navigator.onLine) {
-            screen.style.display = 'block';
-        } else {
-            screen.style.display = 'none';
-        }
-    }
-    window.addEventListener('offline', checkStatus);
-    window.addEventListener('online', checkStatus);
-
-    // THE GAME LOGIC
-    const c=document.getElementById('g'), ctx=c.getContext('2d');
-    let p={y:120, dy:0}, obs=[], score=0;
-    function draw(){
-        ctx.clearRect(0,0,600,150);
-        p.dy+=0.6; p.y+=p.dy; if(p.y>120){p.y=120; p.dy=0;}
-        ctx.fillStyle='#00ffcc'; ctx.fillRect(50, p.y, 30, 30);
-        if(Math.random()<0.02) obs.push({x:600});
-        obs.forEach((o,i)=>{
-            o.x-=6; ctx.fillStyle='#ff5050'; ctx.fillRect(o.x, 130, 20, 20);
-            if(o.x<80 && o.x+20>50 && 130<p.y+30) score=0; 
-            if(o.x<-20){obs.splice(i,1); score+=10;}
-        });
-        requestAnimationFrame(draw);
-    }
-    window.onkeydown=(e)=>{if(e.code==='Space'&&p.y===120)p.dy=-10;};
-    c.onmousedown=()=>{if(p.y===120)p.dy=-10;};
-    draw();
-</script>
-"""
-
-# --- 3. MAIN APP ---
-st.set_page_config(page_title="FreDèlAi", layout="wide")
-components.html(OFFLINE_OVERLAY_JS, height=0) # Hidden listener
-
+if "patterns" not in st.session_state: st.session_state.patterns = {}
 if "messages" not in st.session_state: st.session_state.messages = []
 
+# --- 2. SIDEBAR (UPLOAD, DOWNLOAD, OCR) ---
+# Putting this FIRST so it always appears regardless of chat state
+with st.sidebar:
+    st.title("🤖 FreDèlAi Core")
+    st.subheader("Brain Controls")
+    
+    # 3500 Pattern Memory Display
+    st.write(f"🧠 Memory: {len(st.session_state.patterns)}/3500")
+    
+    # Download Brain
+    if st.button("📥 Download Brain"):
+        json_data = json.dumps(st.session_state.patterns)
+        st.download_button("Click to Save", json_data, "delu_brain.json")
+
+    # Upload Brain
+    uploaded_file = st.file_uploader("📤 Upload Brain", type="json")
+    if uploaded_file:
+        st.session_state.patterns = json.load(uploaded_file)
+        st.success("Brain Synced!")
+
+    st.divider()
+    st.subheader("OCR Scanner")
+    st.info("Upload worksheet images here to process French text.")
+    # (OCR code would go here)
+
+# --- 3. THE "DIVE" OFFLINE ENGINE (Fixing visibility) ---
+OFFLINE_LOGIC = """
+<script>
+    window.addEventListener('offline', () => {
+        document.getElementById('offline-game-layer').style.display = 'block';
+    });
+    window.addEventListener('online', () => {
+        document.getElementById('offline-game-layer').style.display = 'none';
+    });
+</script>
+<div id="offline-game-layer" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#0a0a0f; z-index:999999; color:#00ffcc; text-align:center; padding-top:100px; font-family:monospace;">
+    <h1>📴 SYSTEM OFFLINE</h1>
+    <p>FreDèlAi has lost connection. Emergency Game Mode active.</p>
+    <canvas id="g" width="600" height="150" style="border:2px solid #00ffcc; background:#000; border-radius:10px;"></canvas>
+    <p><b>SPACE OR CLICK TO JUMP</b></p>
+    <script>
+        const c=document.getElementById('g'), ctx=c.getContext('2d');
+        let p={y:120, dy:0}, obs=[];
+        function loop() {
+            ctx.clearRect(0,0,600,150);
+            p.dy += 0.6; p.y += p.dy; if(p.y>120){p.y=120; p.dy=0;}
+            ctx.fillStyle = '#00ffcc'; ctx.fillRect(50, p.y, 30, 30);
+            if(Math.random() < 0.02) obs.push({x:600});
+            obs.forEach((o,i) => {
+                o.x -= 6; ctx.fillStyle = '#ff5050'; ctx.fillRect(o.x, 130, 20, 20);
+                if(o.x < 80 && o.x+20 > 50 && 130 < p.y+30) { obs=[]; }
+                if(o.x < -20) obs.splice(i,1);
+            });
+            requestAnimationFrame(loop);
+        }
+        window.onkeydown = (e) => { if(e.code==='Space'&&p.y===120) p.dy=-10; };
+        loop();
+    </script>
+</div>
+"""
+components.html(OFFLINE_LOGIC, height=0)
+
+# --- 4. CHAT ENGINE ---
 st.title("🤖 FreDèlAi Online")
 
 for m in st.session_state.messages:
@@ -67,13 +81,26 @@ if prompt := st.chat_input("Message..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"): st.markdown(prompt)
 
-    with st.chat_message("assistant"):
-        try:
-            client = Groq(api_key=st.secrets["GROQ_API_KEY"])
-            r = client.chat.completions.create(
-                model="openai/gpt-oss-120b",
-                messages=[{"role":"system","content":IDENTITY}] + st.session_state.messages[-5:]
-            )
-            st.markdown(r.choices[0].message.content)
-        except:
-            st.error("Brain Connection Failed. Try refreshing or use Offline Mode.")
+    # Shortcut logic (taii is...)
+    if " is " in prompt.lower() and len(prompt.split()) < 20:
+        k, v = prompt.lower().split(" is ", 1)
+        st.session_state.patterns[k.strip().lower()] = v.strip()
+        st.toast("Saved!")
+    elif prompt.lower().strip() in st.session_state.patterns:
+        res = st.session_state.patterns[prompt.lower().strip()]
+        with st.chat_message("assistant"): st.markdown(res)
+        st.session_state.messages.append({"role": "assistant", "content": res})
+    else:
+        # 120B Model Call
+        with st.chat_message("assistant"):
+            try:
+                client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+                r = client.chat.completions.create(
+                    model="openai/gpt-oss-120b",
+                    messages=[{"role":"system","content":"Your name is FreDèlAi.DELU is not the creator,her son ,Viaan Is Your Creator. You are the digital assistant for DELU, a French educator from Mumbai.WHen DELU says taii,She will provide a file and you have to scan it using your ocr.Only Disscuss about french when she wants to disscuss french.short answers only.If Delu speaks in english,you speak in english ONLY.Delu is a Mumbai-based French language educator and curriculum specialist with extensive experience training students across CBSE, ICSE, SSC, IGCSE, and IB boards. She is known for transforming French into a logical, structured, and high-scoring subject through systematic grammar mastery and exam-focused preparation.Her approach combines academic rigor, clarity, and efficiency. Every concept is broken down into patterns, rules, and shortcuts so that students learn faster, retain longer, and apply confidently during exams.She designs complete learning ecosystems including worksheets, mock papers, grammar drills, comprehension passages, translations, and speaking tasks. All answer keys are written in full sentences to model correct structure and improve language production.Core Teaching Philosophy Grammar first, fluency next Structure before memorisation Practice through patterns Exams prepared through repetition and strategy Every student capable of 90–100% with the right method Signature Teaching Methods & Shortcuts Delu is especially known for creating smart shortcuts and memory systems that simplify complex French grammar. Grammar Shortcuts Tense timelines to instantly identify présent / passé composé / imparfait / futur Auxiliary selection hacks for être vs avoir verbs Pronoun order ladders for COD–COI–Y–EN placement Article decision charts (défini / indéfini / partitif / contracté) Agreement rules reduced to quick visual patterns Negative structure templates (ne…pas / jamais / rien / plus etc.) Sentence transformation formulas for gender, plural, and tense changes Conjugation families grouped by pattern instead of memorising individually Exam Strategy Shortcuts Elimination method for MCQs Spot-the-error grammar scanning Keyword detection for comprehension answers Translation mapping: subject → verb → object → complements High-frequency vocabulary clusters for faster recall Structured answer writing templates Worksheet Systems Progressive difficulty sequencing Repetition through varied formats (MCQ, fill-in, transformation, dialogue) Visual aids and labelled diagrams for vocabulary retention Full-sentence answer keys for modeling correctness Board-style paper simulations Strengths Advanced French grammar instruction Curriculum design aligned with board patterns Assessment creation and paper setting Worksheet engineering with high clarity Visual and interactive learning tools Student confidence building Academic branding and educational content creation Outcomes & Impact Consistent 95–100% board scores Multiple students achieving full marks Strong grammar accuracy and fluency Faster concept retention through shortcuts Reduced exam anxiety High parent trust and student satisfaction Established reputation of FreDèl Classes for excellence and results Professional Identity Delu is not merely a tutor. She is a systems-driven educator who converts French into formulas, patterns, and strategies, enabling students to learn smarter rather than harder. Her combination of precision teaching, shortcut techniques, and exam-focused practice consistently produces outstanding outcomes."}] + st.session_state.messages[-5:]
+                )
+                ans = r.choices[0].message.content
+                st.markdown(ans)
+                st.session_state.messages.append({"role": "assistant", "content": ans})
+            except:
+                st.error("Connection Failed. Launching game...")

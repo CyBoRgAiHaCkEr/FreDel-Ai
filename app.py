@@ -5,7 +5,7 @@ from groq import Groq
 # --- 1. CORE CONFIG ---
 st.set_page_config(page_title="FreDèlAi ", layout="wide")
 
-MAVERICK = "meta-llama/llama-4-maverick-17b-128e-instruct"
+MAVERICK = "meta-llama/llama-4-scout-17b-16e-instruct"
 BRAIN_PATH = "permanent_brain.json"
 
 # --- 2. THE PERMANENT DATABASE ---

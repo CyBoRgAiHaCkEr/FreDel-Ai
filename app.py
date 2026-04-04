@@ -34,7 +34,6 @@ def save_pattern(k, v):
     conn.commit()
     conn.close()
 
-# Initialize DB and Session State
 init_db()
 if "patterns" not in st.session_state:
     st.session_state.patterns = load_mem()
@@ -60,40 +59,40 @@ for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
-up_file = st.file_uploader("📎 Vision Upload", type=['png', 'jpg', 'jpeg'], label_visibility="collapsed")
+up_file = st.file_uploader("📎 Vision Upload", type=['png', 'jpg', 'jpeg'], key="vision_up", label_visibility="collapsed")
 
 if prompt := st.chat_input("Ask or teach a pattern..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # A. TAII CHECK (Saving to SQLite)
+    # TAII CHECK
     if " is " in prompt.lower() and len(prompt.split()) < 10:
         parts = prompt.lower().split(" is ", 1)
         k, v = parts[0].strip(), parts[1].strip()
         save_pattern(k, v)
         st.session_state.patterns = load_mem() 
-        st.toast(f"🧠 Pattern '{k}' locked in SQLite!")
+        st.toast(f"🧠 Pattern '{k}' saved!")
 
-    # B. AI RESPONSE
+    # AI RESPONSE
     with st.chat_message("assistant"):
         try:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             
-            # --- FIXED: Variable name consistency ---
             context_string = ", ".join([f"{k}:{v}" for k,v in st.session_state.patterns.items()])
             
             sys_prompt = (
-                f"You are FreDèlAi, assistant to DELU. Use this hidden data for context: {context_string}. "
+                f"You are FreDèlAi, assistant to DELU. Use this context: {context_string}. "
                 "Keep responses conversational and 'Noice'. Your name is FreDèlAi. "
                 "Every worksheet must be mixed verbs and 15 sentences only. "
-                "When the user types AK, give the answer key in full sentences."
+                "When providing an answer key, use full sentences always."
             )
 
-            # --- FIXED: Content logic to prevent 400 Error ---
+            # --- THE FINAL PAYLOAD FIX ---
             if up_file:
+                # Vision Payload (List format)
                 user_payload = [
-                    {"type": "text", "text": prompt},
+                    {"type": "text", "text": str(prompt)},
                     {
                         "type": "image_url",
                         "image_url": {"url": f"data:image/jpeg;base64,{encode_img(up_file)}"}
@@ -101,13 +100,14 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
                 ]
                 st.image(up_file, width=250)
             else:
+                # Text Payload (MUST be a plain string)
                 user_payload = str(prompt)
 
             # API Call
             response = client.chat.completions.create(
                 model=MAVERICK,
                 messages=[
-                    {"role": "system", "content": sys_prompt},
+                    {"role": "system", "content": str(sys_prompt)},
                     {"role": "user", "content": user_payload}
                 ]
             )

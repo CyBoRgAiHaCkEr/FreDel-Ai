@@ -1,12 +1,9 @@
 import streamlit as st
-import sqlite3
-import base64
-import os
+import sqlite3, base64, os
 from groq import Groq
 
 # --- 1. CORE CONFIG ---
 st.set_page_config(page_title="FreDèlAi", layout="wide")
-
 MAVERICK = "groq/compound" 
 DB_PATH = "permanent_brain.db"
 
@@ -22,7 +19,8 @@ def init_db():
 def load_mem():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT keyword, definition FROM patterns")
+    # LIMIT to last 20 patterns so the prompt doesn't get too long
+    c.execute("SELECT keyword, definition FROM patterns ORDER BY rowid DESC LIMIT 20")
     rows = c.fetchall()
     conn.close()
     return {row[0]: row[1] for row in rows}
@@ -40,72 +38,63 @@ if "patterns" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# --- 3. VISION UTILS ---
+# --- 3. VISION (ONLY FOR DISPLAY) ---
 def encode_img(file):
     return base64.b64encode(file.read()).decode('utf-8')
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
     st.title("fredel-ai.streamlit.app")
-    st.metric("Patterns in Memory", len(st.session_state.patterns))
-    if st.button("Refresh"):
-        st.session_state.patterns = load_mem()
+    if st.button("Clear History"):
+        st.session_state.messages = []
         st.rerun()
+
 # --- 5. THE CHAT ENGINE ---
 st.title("🤖 FreDèlAi")
 
-# 1. UI History Display
 for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
+    with st.chat_message(m["role"]): st.markdown(m["content"])
 
-# 2. Vision Upload
-up_file = st.file_uploader("📎 Vision Upload", type=['png', 'jpg', 'jpeg'], key="vision_up", label_visibility="collapsed")
+up_file = st.file_uploader("📎 Vision Upload", type=['png', 'jpg', 'jpeg'], key="vision_up")
 
-if prompt := st.chat_input("Ask or teach a pattern..."):
+if prompt := st.chat_input("Ask or teach..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    with st.chat_message("user"): st.markdown(prompt)
 
-    # SQLite Logic (TAII Check)
+    # TAII CHECK
     if " is " in prompt.lower() and len(prompt.split()) < 10:
-        parts = prompt.lower().split(" is ", 1)
-        k, v = parts[0].strip(), parts[1].strip()
-        save_pattern(k, v)
-        st.session_state.patterns = load_mem() 
-        st.toast(f"🧠 Pattern '{k}' saved!")
+        k, v = prompt.lower().split(" is ", 1)
+        save_pattern(k.strip(), v.strip())
+        st.session_state.patterns = load_mem()
+        st.toast("🧠 Pattern saved!")
 
-    # 3. AI RESPONSE
+    # AI RESPONSE
     with st.chat_message("assistant"):
         try:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             
-            # Prepare Hidden Context from SQLite
-            mem_data = st.session_state.patterns
-            context_string = ", ".join([f"{k}:{v}" for k,v in mem_data.items()])
+            # Shorten context to avoid "Length" error
+            context_string = ", ".join([f"{k}:{v}" for k,v in st.session_state.patterns.items()])
             
             sys_prompt = (
-                f"You are FreDèlAi, assistant to DELU. Context: {context_string}. "
-                "Your name is FreDèlAi. Keep it 'Noice'. "
-                "Worksheets must be exactly 15 sentences. AK must be full sentences."
+                f"You are FreDèlAi for DELU. Context: {context_string}. "
+                "Responses: 'Noice'. Worksheets: 15 sentences. AK: Full sentences."
             )
 
-            # --- THE FINAL FIX: EVERYTHING IS A STRING ---
+            # --- THE FIX: NO BASE64 IN THE PROMPT ---
             if up_file:
                 st.image(up_file, width=250)
-                # We append the image data as a string reference within the prompt 
-                # rather than a complex object list, to satisfy the 'must be string' rule.
-                img_b64 = encode_img(up_file)
-                full_user_text = f"{prompt} [Attached Image Data: data:image/jpeg;base64,{img_b64}]"
+                # We tell the AI an image exists, but we DON'T send the huge Base64 string
+                # because groq/compound is likely a text-only endpoint.
+                final_prompt = f"[User uploaded an image] {prompt}"
             else:
-                full_user_text = str(prompt)
+                final_prompt = str(prompt)
 
-            # API Call - Strictly sending strings only
             response = client.chat.completions.create(
                 model=MAVERICK,
                 messages=[
-                    {"role": "system", "content": str(sys_prompt)},
-                    {"role": "user", "content": full_user_text} # This is now GUARANTEED to be a string
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": final_prompt}
                 ]
             )
             

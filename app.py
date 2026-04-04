@@ -28,7 +28,7 @@ def encode_img(file):
     return base64.b64encode(file.read()).decode('utf-8')
 
 with st.sidebar:
-    st.title("🤖 Maverick Core")
+    st.title("fredel-ai.streamlit.app")
     french_ode = st.toggle("🇫🇷 French Mode", value=False)
     st.divider()
     st.metric("Patterns in Memory", len(st.session_state.patterns))
@@ -82,11 +82,10 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
 
             # Maverick Call
             response = client.chat.completions.create(
-                model=MAVERICK,
+                model=maverick,
                 messages=[
                     {"role": "system", "content": sys_prompt},
                     {"role": "user", "content": content}
-                ]
             )
             
             res_text = response.choices[0].message.content

@@ -85,11 +85,11 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
                     {"role": "system", "content": sys_prompt},
                     {"role": "user", "content": content}
                 ]
-            )
+            
             res_text = response.choices[0].message.content
             st.markdown(res_text)
             st.session_state.messages.append({"role": "assistant", "content": res_text})
-             
+            )
         except Exception as e:
             st.error("Error:Please Call FreDel Classes Official Tech Support to solve.")
 

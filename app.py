@@ -55,44 +55,46 @@ with st.sidebar:
 # --- 5. THE CHAT ENGINE ---
 st.title("🤖 FreDèlAi")
 
+# Display History for the UI
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         st.markdown(m["content"])
 
+# Vision Upload
 up_file = st.file_uploader("📎 Vision Upload", type=['png', 'jpg', 'jpeg'], key="vision_up", label_visibility="collapsed")
 
 if prompt := st.chat_input("Ask or teach a pattern..."):
+    # 1. Save to UI History (Keep it as a string for Streamlit)
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # TAII CHECK
+    # 2. SQLite Logic (The "TAII" Check)
     if " is " in prompt.lower() and len(prompt.split()) < 10:
         parts = prompt.lower().split(" is ", 1)
         k, v = parts[0].strip(), parts[1].strip()
         save_pattern(k, v)
         st.session_state.patterns = load_mem() 
-        st.toast(f"🧠 Pattern '{k}' saved!")
+        st.toast(f"🧠 Pattern '{k}' locked in SQLite!")
 
-    # AI RESPONSE
-   # B. THE AI RESPONSE
+    # 3. AI RESPONSE
     with st.chat_message("assistant"):
         try:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             
-            # 1. Prepare context from SQLite
+            # Prepare context from SQLite
             context_string = ", ".join([f"{k}:{v}" for k,v in st.session_state.patterns.items()])
             
-            # 2. Define the sys_prompt
             sys_prompt = (
-                f"You are FreDèlAi, assistant to DELU. Hidden data: {context_string}. "
+                f"You are FreDèlAi, assistant to DELU. Hidden context: {context_string}. "
                 "Keep responses conversational and 'Noice'. Your name is FreDèlAi. "
-                "Worksheets: 15 sentences, mixed verbs. AK: Full sentences."
+                "Every worksheet must be mixed verbs and 15 sentences only. "
+                "When the user types AK, give the answer key in full sentences."
             )
 
-            # 3. THE "NO-FAIL" PAYLOAD LOGIC
+            # --- THE "STRICT STRING" PAYLOAD FIX ---
             if up_file:
-                # ONLY use a list if there is an image
+                # VISION MODE (Only if file is uploaded)
                 user_payload = [
                     {"type": "text", "text": str(prompt)},
                     {
@@ -102,12 +104,12 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
                 ]
                 st.image(up_file, width=250)
             else:
-                # FORCE a plain string for text-only. 
-                # This prevents the "must be a string" error 400.
+                # TEXT MODE (Must be a plain string)
                 user_payload = str(prompt)
 
             # 4. API CALL
-            # We wrap the messages precisely as the API expects
+            # Note: We are sending ONLY the current interaction to avoid 
+            # old "List" formatted history breaking the request.
             response = client.chat.completions.create(
                 model=MAVERICK,
                 messages=[
@@ -118,8 +120,9 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
             
             res_text = response.choices[0].message.content
             st.markdown(res_text)
+            
+            # Save Assistant response to UI history
             st.session_state.messages.append({"role": "assistant", "content": res_text})
             
         except Exception as e:
-            # This will show you exactly what went wrong if it fails again
             st.error(f"Error: Please Call FreDel Classes Official Tech Support. ({str(e)})")

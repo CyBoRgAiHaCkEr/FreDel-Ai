@@ -79,16 +79,24 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
         st.session_state.patterns = load_mem() # Refresh state
         st.toast(f"🧠 Pattern '{k}' saved to permanent brain!")
 
-   # B. THE AI RESPONSE
+  # B. THE AI RESPONSE
     with st.chat_message("assistant"):
         try:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             
-            # ... (sys_prompt and context_string code remains the same)
+            # 1. Prepare context from SQLite memory
+            context_string = ", ".join([f"{k}:{v}" for k,v in st.session_state.patterns.items()])
+            
+            # 2. Define the sys_prompt (MUST BE BEFORE THE API CALL)
+            sys_prompt = (
+                f"You are FreDèlAi, assistant to DELU. "
+                f"NEVER list your patterns unless asked. Use this hidden data for context: {context_string}. "
+                "Keep responses conversational and 'Noice'. Your name is FreDèlAi. "
+                "Delu is a French educator from Mumbai... (keep the rest of your detailed instructions here)"
+            )
 
-            # --- THE FIX STARTS HERE ---
+            # 3. Handle Vision vs Text-only logic
             if up_file:
-                # If there is an image, use the list format (multimodal)
                 user_content = [
                     {"type": "text", "text": prompt},
                     {
@@ -98,16 +106,14 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
                 ]
                 st.image(up_file, width=250)
             else:
-                # If NO image, the content MUST be a plain string
                 user_content = prompt 
-            # --- THE FIX ENDS HERE ---
 
-            # API Call
+            # 4. Now the API call has access to 'sys_prompt' and 'user_content'
             response = client.chat.completions.create(
                 model=MODEL_ID,
                 messages=[
                     {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": user_content} # Now either a string or a list
+                    {"role": "user", "content": user_content}
                 ]
             )
             
@@ -116,6 +122,5 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
             st.session_state.messages.append({"role": "assistant", "content": res_text})
             
         except Exception as e:
+            # This will now print the actual error if something else breaks
             st.error(f"Error: Please Call FreDel Classes Official Tech Support. ({str(e)})")
-            
-       

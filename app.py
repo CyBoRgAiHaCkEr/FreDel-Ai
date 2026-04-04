@@ -75,22 +75,24 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
         st.toast(f"🧠 Pattern '{k}' saved!")
 
     # AI RESPONSE
+   # B. THE AI RESPONSE
     with st.chat_message("assistant"):
         try:
             client = Groq(api_key=st.secrets["GROQ_API_KEY"])
             
+            # 1. Prepare context from SQLite
             context_string = ", ".join([f"{k}:{v}" for k,v in st.session_state.patterns.items()])
             
+            # 2. Define the sys_prompt
             sys_prompt = (
-                f"You are FreDèlAi, assistant to DELU. Use this context: {context_string}. "
+                f"You are FreDèlAi, assistant to DELU. Hidden data: {context_string}. "
                 "Keep responses conversational and 'Noice'. Your name is FreDèlAi. "
-                "Every worksheet must be mixed verbs and 15 sentences only. "
-                "When providing an answer key, use full sentences always."
+                "Worksheets: 15 sentences, mixed verbs. AK: Full sentences."
             )
 
-            # --- THE FINAL PAYLOAD FIX ---
+            # 3. THE "NO-FAIL" PAYLOAD LOGIC
             if up_file:
-                # Vision Payload (List format)
+                # ONLY use a list if there is an image
                 user_payload = [
                     {"type": "text", "text": str(prompt)},
                     {
@@ -100,10 +102,12 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
                 ]
                 st.image(up_file, width=250)
             else:
-                # Text Payload (MUST be a plain string)
+                # FORCE a plain string for text-only. 
+                # This prevents the "must be a string" error 400.
                 user_payload = str(prompt)
 
-            # API Call
+            # 4. API CALL
+            # We wrap the messages precisely as the API expects
             response = client.chat.completions.create(
                 model=MAVERICK,
                 messages=[
@@ -117,4 +121,5 @@ if prompt := st.chat_input("Ask or teach a pattern..."):
             st.session_state.messages.append({"role": "assistant", "content": res_text})
             
         except Exception as e:
+            # This will show you exactly what went wrong if it fails again
             st.error(f"Error: Please Call FreDel Classes Official Tech Support. ({str(e)})")

@@ -4,7 +4,7 @@ from groq import Groq
 
 # --- 1. CORE CONFIG ---
 st.set_page_config(page_title="FreDèlAi", layout="wide")
-MAVERICK = "groq/compound" 
+MAVERICK = "meta-llama/llama-4-scout-17b-16e-instruct" 
 DB_PATH = "permanent_brain.db"
 
 # --- 2. THE SQLITE DATABASE ---

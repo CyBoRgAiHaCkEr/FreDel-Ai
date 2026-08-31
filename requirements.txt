@@ -8,3 +8,5 @@ Pillow
 numpy
 opencv-python-headless
 altair<5
+pypdf
+python-docx
